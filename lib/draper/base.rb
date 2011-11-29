@@ -96,6 +96,30 @@ module Draper
       input.respond_to?(:each) ? Draper::DecoratedEnumerableProxy.new(input, self, context) : new(input, context)
     end
     
+    # Typically called withing a decorator definition, this method causes
+    # the assocation to be decorated when it is retrieved.
+    #
+    # @param [Symbol] name of association to decorate, like `:products`
+    def self.decorates_association(association_symbol)
+      define_method(association_symbol) do
+        orig_association = model.send(association_symbol)
+        return nil  if orig_association.nil?
+        if orig_association.respond_to? :reflect_on_association # The association is a collection
+          "#{orig_association.reflect_on_association(association_symbol).klass}Decorator".constantize.decorate(orig_association)
+        else
+          "#{orig_association.class}Decorator".constantize.decorate(orig_association)
+        end
+      end
+    end
+
+    # A convenience method for decorating multiple associations. Calls
+    # decorates_association on each of the given symbols.
+    #
+    # @param [Symbols*] name of associations to decorate
+    def self.decorates_associations(*association_symbols)
+      association_symbols.each{ |sym| decorates_association(sym) }
+    end
+    
     # Fetch all instances of the decorated class and decorate them.
     #
     # @param [Object] context (optional)

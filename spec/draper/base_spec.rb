@@ -399,4 +399,25 @@ describe Draper::Base do
       end
     end
   end
+  
+  describe ".decorates_association" do
+    context "for collection associations" do
+      before { subject.class_eval{ decorates_association :similar_products } }
+      it "causes the association's method to return a collection of wrapped objects" do
+        subject.similar_products.each{ |decorated| decorated.should be_instance_of(ProductDecorator) }
+      end
+    end
+
+    context "for a singular association" do
+      before(:each){ subject.class_eval{ decorates_association :previous_version } }
+      it "causes the association's method to return a single wrapped object if the association is singular" do
+        subject.previous_version.should be_instance_of(ProductDecorator)
+      end
+
+      it "causes the association's method to return nil if the association is nil" do
+        source.stub(:previous_version){ nil }
+        subject.previous_version.should be_nil
+      end
+    end
+  end
 end
