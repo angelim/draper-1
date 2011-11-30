@@ -100,14 +100,16 @@ module Draper
     # the assocation to be decorated when it is retrieved.
     #
     # @param [Symbol] name of association to decorate, like `:products`
-    def self.decorates_association(association_symbol)
+    def self.decorates_association(association_symbol, options = {})
       define_method(association_symbol) do
         orig_association = model.send(association_symbol)
         return nil  if orig_association.nil?
-        if orig_association.respond_to? :reflect_on_association # The association is a collection
+        if orig_association.respond_to? :reflect_on_association
           "#{orig_association.reflect_on_association(association_symbol).klass}Decorator".constantize.decorate(orig_association)
+        elsif options[:class_name].present?
+          "#{options[:class_name]}Decorator".constantize.decorate(orig_association)
         else
-          "#{orig_association.class}Decorator".constantize.decorate(orig_association)
+          raise "Associaton class not found. Please provide :class_name option."
         end
       end
     end

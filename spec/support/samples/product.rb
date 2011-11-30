@@ -54,6 +54,10 @@ class Product < ActiveRecord::Base
   end
 
   def previous_version
-    Product.new
+    result = Product.new
+    def result.reflect_on_association(association_sym = nil)
+      OpenStruct.new(:klass => Product)
+    end
+    result
   end
 end
