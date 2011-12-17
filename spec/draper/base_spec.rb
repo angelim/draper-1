@@ -38,6 +38,13 @@ describe Draper::Base do
       Decorator.h.should == Decorator.helpers
     end
   end
+  
+  describe ".initialize_decorator_registration" do
+    it "responds to :registered_decorators after initialization" do
+      ProductDecorator.decorate(source)
+      Product.should respond_to :registered_decorators
+    end
+  end
 
   context(".decorates") do
     it "sets the model class for the decorator" do
@@ -48,7 +55,7 @@ describe Draper::Base do
       class Business; end
       expect do
         class BusinessDecorator < Draper::Base
-          decorates:business
+          decorates :business
         end
         BusinessDecorator.model_class.should == Business
       end.should_not raise_error
@@ -57,6 +64,30 @@ describe Draper::Base do
     it "creates a named accessor for the wrapped model" do
       pd = ProductDecorator.new(source)
       pd.send(:product).should == source
+    end
+
+    context "when using default decorator version" do
+      it "sets default version proxy to current decorator" do
+        ProductDecorator.decorate(source)
+        Product.registered_decorators[:default].should == "ProductDecorator"
+      end
+    end
+    
+    context "when using a versioned decorator" do
+      it "creates a proxy for versioned decorator in model" do
+        Api::ProductDecorator.decorate(:source)
+        Product.registered_decorators[:api].should == "Api::ProductDecorator"
+      end
+    end
+    
+    context "when using a unconventional decorator name without version option" do
+      it "returns ArgumentError" do
+        expect {
+          class ErrorProductDecorator < Draper::Base
+            decorates :product
+          end
+        }.to raise_error(ArgumentError, "Specify a :version option for decorators that doen't follow basic naming conventions")
+      end
     end
 
     context("namespaced model supporting") do
@@ -135,7 +166,7 @@ describe Draper::Base do
     end
 
     it "should accept and store a context" do
-      pd = ProductDecorator.find(1, :admin)
+      pd = ProductDecorator.find(1, :context => :admin)
       pd.context.should == :admin
     end
   end
@@ -164,7 +195,7 @@ describe Draper::Base do
     context "with a context" do
       let(:context) {{ :some => 'data' }}
 
-      subject { Draper::Base.decorate(source, context) }
+      subject { Draper::Base.decorate(source, :context => context) }
 
       context "when given a collection of source objects" do
         let(:source) { [Product.new, Product.new] }
@@ -181,6 +212,47 @@ describe Draper::Base do
       end
     end
 
+    context "does not infer collections by default" do
+      subject { Draper::Base.decorate(source).to_ary }
+
+      let(:source) { [Product.new, Widget.new] }
+
+      it "returns a collection of wrapped objects all with the same decorator" do
+        subject.first.class.name.should eql 'Draper::Base'
+        subject.last.class.name.should eql  'Draper::Base'
+      end
+    end
+
+    context "does not infer single items by default" do
+      subject { Draper::Base.decorate(source) }
+
+      let(:source) { Product.new }
+
+      it "returns a decorator of the type explicity used in the call" do
+        subject.class.should eql Draper::Base
+      end
+    end
+
+    context "returns a collection containing only the explicit decorator used in the call" do
+      subject { Draper::Base.decorate(source, :infer => true).to_ary }
+
+      let(:source) { [Product.new, Widget.new] }
+
+      it "returns a mixed collection of wrapped objects" do
+        subject.first.class.should eql ProductDecorator
+        subject.last.class.should eql WidgetDecorator
+      end
+    end
+
+    context "when given a single object" do
+      subject { Draper::Base.decorate(source, :infer => true) }
+
+      let(:source) { Product.new }
+
+      it "can also infer its decorator" do
+        subject.class.should eql ProductDecorator
+      end
+    end
   end
 
   context('.==') do
@@ -189,7 +261,7 @@ describe Draper::Base do
       subject.should == other
     end
   end
-  
+
   context 'position accessors' do
     [:first, :last].each do |method|
       context "##{method}" do
@@ -202,9 +274,9 @@ describe Draper::Base do
         end
 
         it "should accept an optional context" do
-          ProductDecorator.send(method, :admin).context.should == :admin
+          ProductDecorator.send(method, :context => :admin).context.should == :admin
         end
-      end      
+      end
     end
   end
 
@@ -269,13 +341,18 @@ describe Draper::Base do
       subject_one.should_not == subject_two
     end
 
+    it "should allow decorated access by index" do
+      subject = ProductDecorator.decorate(paged_array)
+      subject[0].should be_instance_of ProductDecorator
+    end
+
     context '#all' do
       it "should return a decorated collection" do
         ProductDecorator.all.first.should be_instance_of ProductDecorator
       end
-      
+
       it "should accept a context" do
-        collection = ProductDecorator.all(:admin)
+        collection = ProductDecorator.all(:context => :admin)
         collection.first.context.should == :admin
       end
     end

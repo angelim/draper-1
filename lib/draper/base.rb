@@ -15,15 +15,15 @@ module Draper
 
     # Initialize a new decorator instance by passing in
     # an instance of the source class. Pass in an optional
-    # context is stored for later use.
+    # context inside the options hash is stored for later use.
     #
     # @param [Object] instance to wrap
-    # @param [Object] context (optional)
-    def initialize(input, context = {})
+    # @param [Hash] options (optional)
+    def initialize(input, options = {})
       input.inspect # forces evaluation of a lazy query from AR
       self.class.model_class = input.class if model_class.nil?
       @model = input
-      self.context = context
+      self.context = options.fetch(:context, {})
     end
 
     # Proxies to the class specified by `decorates` to automatically
@@ -31,8 +31,8 @@ module Draper
     #
     # @param [Symbol or String] id to lookup
     # @return [Object] instance of this decorator class
-    def self.find(input, context = {})
-      self.new(model_class.find(input), context)
+    def self.find(input, options = {})
+      self.new(model_class.find(input), options)
     end
 
     # Typically called within a decorator definition, this method
@@ -43,14 +43,69 @@ module Draper
     # But they don't have to match in name, so a `EmployeeDecorator`
     # class could call `decorates :person` to wrap instances of `Person`
     #
-    # This is primarilly set so the `.find` method knows which class 
+    # This is primarilly set so the `.find` method knows which class
     # to query.
     #
-    # @param [Symbol] class_name snakecase name of the decorated class, like `:product`
+    # @param [ Symbol ] input Snakecase name of the decorated class, like `:product`
+    # @param options [ Symbol ] :class Usefull when using namespaced classes or some class alias
+    # @param options [ Symbol ] :version An Alternative decorator version
+    # @raise ArgumentError When using unconventional decorator naming without providing a :version name
+    # 
+    # @example A decorator for a namespaced class +User::Profile+
+    #   class ProfileDecorator < ApplicationDecorator
+    #     decorates :profile, :class => User::Profile
+    #   end
+    # 
+    # @example A default decorator for +Product+
+    #   class ProductDecorator < ApplicationDecorator
+    #     decorates :product
+    #     def name
+    #       "#{id}-#{name}"
+    #     end
+    #   end
+    #   p = Product.new(:name => "Vanilla")
+    #   p.id #=> 1
+    #   p.decorator.name #=> 1-Vanilla
+    # 
+    # @example A special decorator for +Product+
+    #   class Api::ProductDecorator < ApplicationDecorator
+    #     decorates :product, :version => :api
+    #     def name
+    #       "api-#{id}-#{name}"
+    #     end
+    #   end
+    #   p = Product.new(:name => "Vanilla")
+    #   p.id #=> 1
+    #   p.decorator.name #=> api-1-Vanilla
     def self.decorates(input, options = {})
       self.model_class = options[:class] || input.to_s.camelize.constantize
-      model_class.send :include, Draper::ModelSupport
+      inferred_decorator_name = "#{self.model_class}Decorator"
+      if version = options[:version]
+        decorator_version = { version => self.name }
+      elsif version.blank? && self.name == inferred_decorator_name
+        decorator_version = { :default => inferred_decorator_name }
+      else
+        raise ArgumentError, "Specify a :version option for decorators that doen't follow basic naming conventions"
+      end
+      unless defined? self.model_class.registered_decorators
+        initialize_decorator_registration
+      end
+      self.registered_decorators ||= {}
+      self.registered_decorators.merge!(decorator_version)
       define_method(input){ @model }
+    end
+    
+    # Defines a class variable to hold all versions of related decorators
+    # and includes +Drapper::ModelSupport+ methods in +model_class+.
+    # @see .decorates
+    # @see Drapper::ModelSupport
+    def self.initialize_decorator_registration
+      self.model_class.class_eval <<-RUBY
+        class << self
+          attr_accessor :registered_decorators
+        end
+      RUBY
+      model_class.send :include, Draper::ModelSupport
     end
 
     # Specifies a black list of methods which may *not* be proxied to
@@ -83,7 +138,7 @@ module Draper
 
     # Initialize a new decorator instance by passing in
     # an instance of the source class. Pass in an optional
-    # context is stored for later use.
+    # context into the options hash is stored for later use.
     #
     # When passing in a single object, using `.decorate` is
     # identical to calling `.new`. However, `.decorate` can
@@ -91,9 +146,15 @@ module Draper
     # individually decorated objects.
     #
     # @param [Object] instance(s) to wrap
-    # @param [Object] context (optional)
-    def self.decorate(input, context = {})
-      input.respond_to?(:each) ? Draper::DecoratedEnumerableProxy.new(input, self, context) : new(input, context)
+    # @param [Hash] options (optional)
+    def self.decorate(input, options = {})
+      if input.respond_to?(:each)
+        Draper::DecoratedEnumerableProxy.new(input, self, options)
+      elsif options[:infer]
+        input.decorator(options)
+      else
+        new(input, options)
+      end
     end
     
     # Typically called withing a decorator definition, this method causes
@@ -124,24 +185,24 @@ module Draper
     
     # Fetch all instances of the decorated class and decorate them.
     #
-    # @param [Object] context (optional)
+    # @param [Hash] options (optional)
     # @return [Draper::DecoratedEnumerableProxy]
-    def self.all(context = {})
-      Draper::DecoratedEnumerableProxy.new(model_class.all, self, context)
-    end
-    
-    def self.first(context = {})
-      decorate(model_class.first, context)
+    def self.all(options = {})
+      Draper::DecoratedEnumerableProxy.new(model_class.all, self, options)
     end
 
-    def self.last(context = {})
-      decorate(model_class.last, context)
+    def self.first(options = {})
+      decorate(model_class.first, options)
+    end
+
+    def self.last(options = {})
+      decorate(model_class.last, options)
     end
 
     # Access the helpers proxy to call built-in and user-defined
     # Rails helpers. Aliased to `.h` for convinience.
     #
-    # @return [Object] proxy   
+    # @return [Object] proxy
     def helpers
       self.class.helpers
     end
@@ -150,13 +211,13 @@ module Draper
     # Access the helpers proxy to call built-in and user-defined
     # Rails helpers from a class context.
     #
-    # @return [Object] proxy   
+    # @return [Object] proxy
     class << self
       def helpers
         Draper::ViewContext.current
       end
       alias :h :helpers
-    end    
+    end
 
     # Fetch the original wrapped model.
     #
@@ -167,7 +228,7 @@ module Draper
 
     # Delegates == to the decorated models
     #
-    # @return [Boolean] true if other's model == self's model 
+    # @return [Boolean] true if other's model == self's model
     def ==(other)
       @model == (other.respond_to?(:model) ? other.model : other)
     end
@@ -194,11 +255,11 @@ module Draper
         super
       end
     end
-    
+
     def self.method_missing(method, *args, &block)
       model_class.send(method, *args, &block)
     end
-    
+
     def self.respond_to?(method, include_private = false)
       super || model_class.respond_to?(method)
     end
@@ -206,6 +267,6 @@ module Draper
   private
     def allow?(method)
       (!allowed? || allowed.include?(method) || FORCED_PROXY.include?(method)) && !denied.include?(method)
-    end    
+    end
   end
 end
