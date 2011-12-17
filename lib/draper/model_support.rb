@@ -2,16 +2,15 @@ module Draper::ModelSupport
   extend ActiveSupport::Concern
 
   def decorator(options = {})
-    @decorator ||= begin
-      if options[:infer]
-        decorator_class = "#{self.class.name}Decorator".constantize
-      else
-        decorator_version = options[:version] || :default
-        decorator_class = self.class.registered_decorators[decorator_version].constantize
-      end
-      decorator_class.decorate(self, options.merge(:infer => false))
+    cache_key = options.flatten.join.parameterize
+    @decorator ||= {}
+    @decorator[cache_key] ||= begin
+      decorator_version = options[:version] || :default
+      decorators = self.class.registered_decorators
+      decorator_class = (decorators[decorator_version] || decorators[:default]).constantize
+      decorator_class.new(self, options)
     end
-    block_given? ? yield(@decorator) : @decorator
+    block_given? ? yield(@decorator[cache_key]) : @decorator[cache_key]
   end
   
   def model
@@ -22,16 +21,15 @@ module Draper::ModelSupport
 
   module ClassMethods
     def decorate(options = {})
-      @decorator_proxy ||= begin
-        if options[:infer]
-          decorator_class = "#{self.name}Decorator".constantize
-        else
-          decorator_version = options[:version] || :default
-          decorator_class = self.registered_decorators[decorator_version].constantize
-        end
+      cache_key = options.flatten.join.parameterize
+      @decorator ||= {}
+      @decorator[cache_key] ||= begin
+        decorator_version = options[:version] || :default
+        decorators = self.registered_decorators
+        decorator_class = (decorators[decorator_version] || decorators[:default]).constantize
         decorator_class.decorate(self.scoped, options)
       end
-      block_given? ? yield(@decorator_proxy) : @decorator_proxy
+      block_given? ? yield(@decorator[cache_key]) : @decorator[cache_key]
     end
   end
 

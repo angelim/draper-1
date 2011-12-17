@@ -2,7 +2,7 @@ module Draper
   class Base
     require 'active_support/core_ext/class/attribute'
     class_attribute :denied, :allowed, :model_class
-    attr_accessor :context, :model
+    attr_accessor :context, :model, :version
 
     DEFAULT_DENIED = Object.new.methods << :method_missing
     FORCED_PROXY = [:to_param, :id]
@@ -24,6 +24,7 @@ module Draper
       self.class.model_class = input.class if model_class.nil?
       @model = input
       self.context = options.fetch(:context, {})
+      self.version = options.fetch(:version, :default)
     end
 
     # Proxies to the class specified by `decorates` to automatically
@@ -32,7 +33,7 @@ module Draper
     # @param [Symbol or String] id to lookup
     # @return [Object] instance of this decorator class
     def self.find(input, options = {})
-      self.new(model_class.find(input), options)
+      model_class.find(input).decorate(options)
     end
 
     # Typically called within a decorator definition, this method
@@ -78,9 +79,10 @@ module Draper
     #   p.id #=> 1
     #   p.decorator.name #=> api-1-Vanilla
     def self.decorates(input, options = {})
-      self.model_class = options[:class] || input.to_s.camelize.constantize
+      @options = options
+      self.model_class = @options[:class] || input.to_s.camelize.constantize
       inferred_decorator_name = "#{self.model_class}Decorator"
-      if version = options[:version]
+      if version = @options[:version]
         decorator_version = { version => self.name }
       elsif version.blank? && self.name == inferred_decorator_name
         decorator_version = { :default => inferred_decorator_name }
@@ -150,8 +152,8 @@ module Draper
     def self.decorate(input, options = {})
       if input.respond_to?(:each)
         Draper::DecoratedEnumerableProxy.new(input, self, options)
-      elsif options[:infer]
-        input.decorator(options)
+      elsif input.respond_to? :decorate
+        input.decorate(options)
       else
         new(input, options)
       end
@@ -164,14 +166,7 @@ module Draper
     def self.decorates_association(association_symbol, options = {})
       define_method(association_symbol) do
         orig_association = model.send(association_symbol)
-        return nil  if orig_association.nil?
-        if model.respond_to? :reflect_on_association
-          "#{model.reflect_on_association(association_symbol).klass}Decorator".constantize.decorate(orig_association)
-        elsif options[:class_name].present?
-          "#{options[:class_name]}Decorator".constantize.decorate(orig_association)
-        else
-          raise ArgumentError.new("Associaton class not found. Please provide :class_name option.")
-        end
+        orig_association.decorate(options.reverse_merge(:version => version)) if orig_association
       end
     end
 
@@ -192,11 +187,11 @@ module Draper
     end
 
     def self.first(options = {})
-      decorate(model_class.first, options)
+      model_class.first.decorate(options)
     end
 
     def self.last(options = {})
-      decorate(model_class.last, options)
+      model_class.last.decorate(options)
     end
 
     # Access the helpers proxy to call built-in and user-defined

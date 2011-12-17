@@ -23,10 +23,19 @@ describe Draper::ModelSupport do
       end
     end
     context "when decorating with a decorator version" do
-      let(:decorator) { Product.new.decorator(:version => :api) }
-      it "returns methods from given version" do
-        decorator.awesome_title.should == "Special Awesome Title"
+      context "when version exists" do
+        let(:decorator) { Product.new.decorator(:version => :api) }
+        it "returns methods from given version" do
+          decorator.awesome_title.should == "Special Awesome Title"
+        end
       end
+      context "when version is not registered" do
+        let(:decorator) { Widget.new.decorator(:version => :api) }
+        it "falls back to the default decorator" do
+          decorator.awesome_title.should == "Widget Title"
+        end
+      end
+
     end
     
   end

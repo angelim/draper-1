@@ -56,4 +56,8 @@ class Product < ActiveRecord::Base
   def previous_version
     Product.new
   end
+  
+  def widget
+    Widget.new
+  end
 end

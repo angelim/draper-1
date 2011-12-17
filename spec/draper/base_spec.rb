@@ -75,7 +75,7 @@ describe Draper::Base do
     
     context "when using a versioned decorator" do
       it "creates a proxy for versioned decorator in model" do
-        Api::ProductDecorator.decorate(:source)
+        Api::ProductDecorator.decorate(source)
         Product.registered_decorators[:api].should == "Api::ProductDecorator"
       end
     end
@@ -181,14 +181,14 @@ describe Draper::Base do
         its(:size) { should == source.size }
 
         it "returns a collection of wrapped objects" do
-          subject.each{ |decorated| decorated.should be_instance_of(Draper::Base) }
+          subject.each{ |decorated| decorated.should be_instance_of(ProductDecorator) }
         end
       end
 
       context "when given a single source object" do
         let(:source) { Product.new }
 
-        it { should be_instance_of(Draper::Base) }
+        it { should be_instance_of(ProductDecorator) }
       end
     end
 
@@ -212,47 +212,27 @@ describe Draper::Base do
       end
     end
 
-    context "does not infer collections by default" do
+    context "infers collections by default" do
       subject { Draper::Base.decorate(source).to_ary }
 
       let(:source) { [Product.new, Widget.new] }
 
       it "returns a collection of wrapped objects all with the same decorator" do
-        subject.first.class.name.should eql 'Draper::Base'
-        subject.last.class.name.should eql  'Draper::Base'
+        subject.first.class.name.should eql 'ProductDecorator'
+        subject.last.class.name.should eql  'WidgetDecorator'
       end
     end
 
-    context "does not infer single items by default" do
+    context "infers single items by default" do
       subject { Draper::Base.decorate(source) }
 
       let(:source) { Product.new }
 
       it "returns a decorator of the type explicity used in the call" do
-        subject.class.should eql Draper::Base
-      end
-    end
-
-    context "returns a collection containing only the explicit decorator used in the call" do
-      subject { Draper::Base.decorate(source, :infer => true).to_ary }
-
-      let(:source) { [Product.new, Widget.new] }
-
-      it "returns a mixed collection of wrapped objects" do
-        subject.first.class.should eql ProductDecorator
-        subject.last.class.should eql WidgetDecorator
-      end
-    end
-
-    context "when given a single object" do
-      subject { Draper::Base.decorate(source, :infer => true) }
-
-      let(:source) { Product.new }
-
-      it "can also infer its decorator" do
         subject.class.should eql ProductDecorator
       end
     end
+
   end
 
   context('.==') do
@@ -479,6 +459,7 @@ describe Draper::Base do
   
   describe ".decorates_association" do
     context "for collection associations" do
+      before { Array.any_instance.stub(:decorate).and_return(Draper::Base.decorate(Product.all)) }
       before { subject.class_eval{ decorates_association :similar_products } }
       it "causes the association's method to return a collection of wrapped objects" do
         subject.similar_products.each{ |decorated| decorated.should be_instance_of(ProductDecorator) }
@@ -486,14 +467,39 @@ describe Draper::Base do
     end
 
     context "for a singular association" do
-      before(:each){ subject.class_eval{ decorates_association :previous_version } }
-      it "causes the association's method to return a single wrapped object if the association is singular" do
-        subject.previous_version.should be_instance_of(ProductDecorator)
-      end
+      context "when using regular named decorator" do
+        before  { subject.class_eval{ decorates_association :previous_version } }
+        it "causes the association's method to return a single wrapped object if the association is singular" do
+          subject.previous_version.should be_instance_of(ProductDecorator)
+        end
 
-      it "causes the association's method to return nil if the association is nil" do
-        source.stub(:previous_version){ nil }
-        subject.previous_version.should be_nil
+        it "causes the association's method to return nil if the association is nil" do
+          source.stub(:previous_version){ nil }
+          subject.previous_version.should be_nil
+        end
+      end
+      context "when accessing association using special decorator" do
+        context "when association decorator exists in the same version" do
+          before          { Api::ProductDecorator.class_eval { decorates_association :previous_version } }
+          let(:decorator) { Product.new.decorate(:version => :api) }
+          it "returns special association" do
+            decorator.previous_version.should be_a Api::ProductDecorator
+          end
+        end
+        context "when association decorator does not exists in the same version" do
+          before          { Api::ProductDecorator.class_eval { decorates_association :widget } }
+          let(:decorator) { Product.new.decorate(:version => :api) }
+          it "returns special association" do
+            decorator.widget.should be_a WidgetDecorator
+          end
+        end
+      end
+      context "when forcing association to use default decorator" do
+        before          { Api::ProductDecorator.class_eval { decorates_association :previous_version, :version => :default } }
+        let(:decorator) { Product.new.decorate(:version => :api) }
+        it "returns default decorator for association" do
+          decorator.previous_version.should be_a ProductDecorator
+        end
       end
     end
   end
