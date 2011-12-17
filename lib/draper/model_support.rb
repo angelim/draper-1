@@ -1,7 +1,12 @@
 module Draper::ModelSupport
+  extend ActiveSupport::Concern
   def decorator
     @decorator ||= "#{self.class.name}Decorator".constantize.decorate(self)
     block_given? ? yield(@decorator) : @decorator
+  end
+  
+  def model
+    self
   end
   
   alias :decorate :decorator
@@ -13,7 +18,4 @@ module Draper::ModelSupport
     end
   end
 
-  def self.included(base)
-    base.extend(ClassMethods)
-  end
 end

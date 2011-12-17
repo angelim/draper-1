@@ -45,19 +45,15 @@ class Product < ActiveRecord::Base
     yield
   end
   
+  def reflect_on_association(association_sym = nil)
+    OpenStruct.new(:klass => Product)
+  end
+  
   def similar_products
-    result = [Product.new, Product.new]
-    def result.reflect_on_association(association_sym = nil)
-      OpenStruct.new(:klass => Product)
-    end
-    result
+    [Product.new, Product.new]
   end
 
   def previous_version
-    result = Product.new
-    def result.reflect_on_association(association_sym = nil)
-      OpenStruct.new(:klass => Product)
-    end
-    result
+    Product.new
   end
 end

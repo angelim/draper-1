@@ -104,12 +104,12 @@ module Draper
       define_method(association_symbol) do
         orig_association = model.send(association_symbol)
         return nil  if orig_association.nil?
-        if orig_association.respond_to? :reflect_on_association
-          "#{orig_association.reflect_on_association(association_symbol).klass}Decorator".constantize.decorate(orig_association)
+        if model.respond_to? :reflect_on_association
+          "#{model.reflect_on_association(association_symbol).klass}Decorator".constantize.decorate(orig_association)
         elsif options[:class_name].present?
           "#{options[:class_name]}Decorator".constantize.decorate(orig_association)
         else
-          raise "Associaton class not found. Please provide :class_name option."
+          raise ArgumentError.new("Associaton class not found. Please provide :class_name option.")
         end
       end
     end
