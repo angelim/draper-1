@@ -30,14 +30,14 @@ module Draper::ModelSupport
       block_given? ? yield(@decorator[cache_key]) : @decorator[cache_key]
     end
     
-    def recursively_find_decorator(version)
-      current_klass, decorator_class = self, nil
-      while current_klass != nil && decorator_class.blank?
+    def recursively_find_decorator(version, current_klass = self)
+      return if current_klass == nil
+      begin
         decorators = current_klass.registered_decorators
-        next unless decorators
         decorator_class = (decorators[version] || decorators[:default])
-        return decorator_class.constantize if decorator_class.present?
-        current_klass = current_klass.superclass
+        decorator_class.constantize
+      rescue
+        recursively_find_decorator(version, current_klass.superclass)
       end
     end
   end
