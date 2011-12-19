@@ -8,14 +8,6 @@ module Draper
       @wrapped_collection, @klass, @options = collection, klass, options
     end
     
-    def to_json(options = {})
-      @wrapped_collection.to_json(options)
-    end
-    
-    def to_xml(options = {})
-      @wrapped_collection.to_xml(options)
-    end
-    
     def each(&block)
       @wrapped_collection.each { |member| block.call(member.decorate(@options)) }
     end
