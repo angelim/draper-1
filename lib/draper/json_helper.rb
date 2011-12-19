@@ -24,7 +24,7 @@ module Draper
     # Point single record json generation to #as_json
     # @see #as_json
     def to_json(options = {})
-      as_json(options)
+      as_json(options).to_json
     end
 
     # Extends uppon +ActiveModel::Serialization::SerializableHash+
@@ -72,12 +72,12 @@ module Draper
     #     decorates_association :store
     #   end
     #   original_json = Product.first.decorate.to_json(:include => :store)
-    #   original_json #=> {"id" => "1", "price" => "4.45", :store => {"id" => "1", "name" => "Original Name", "location" => "Disney"} }
+    #   original_json #=> {"id" => "1", "price" => "4.45", "store" => {"id" => "1", "name" => "Original Name", "location" => "Disney"} }
     #   decorated_json = Product.first.decorate.to_json(:decorated_include => :store)
-    #   decorated_json #=> {"id" => "1", "price" => "$4.45", :store => {"name" => "Formatted Name", "location" => "Disney"}}
+    #   decorated_json #=> {"id" => "1", "price" => "$4.45", "store" => {"name" => "Formatted Name", "location" => "Disney"}}
     # @see ActiveModel::Serialization::SerializableHash
     def as_decorated_json(options = {})
-      model.as_json(options).merge(decorated_attributes(options)).to_json
+      model.as_json(options).merge(decorated_attributes(options))
     end
     
     # @param #as_decorated_json
