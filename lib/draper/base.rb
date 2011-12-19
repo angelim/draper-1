@@ -1,6 +1,7 @@
 module Draper
   class Base
     require 'active_support/core_ext/class/attribute'
+    include Draper::JsonHelper
     class_attribute :denied, :allowed, :model_class
     attr_accessor :context, :model, :version
 
