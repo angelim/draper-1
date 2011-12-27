@@ -24,7 +24,7 @@ module Draper::ModelSupport
       cache_key = options.flatten.join.parameterize
       cache_key = cache_key.blank? ? "default" : cache_key
       @decorator ||= {}
-      @decorator[cache_key] ||= begin
+      @decorator[cache_key] = begin
         decorator_version = options[:version] || :default
         decorator_class = self.recursively_find_decorator(decorator_version)
         decorator_class.decorate(self.scoped, options) if decorator_class
