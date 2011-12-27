@@ -3,6 +3,7 @@ module Draper::ModelSupport
 
   def decorator(options = {})
     cache_key = options.flatten.join.parameterize
+    cache_key = cache_key.blank? ? "default" : cache_key
     @decorator ||= {}
     @decorator[cache_key] ||= begin
       decorator_version = options[:version] || :default
@@ -21,6 +22,7 @@ module Draper::ModelSupport
   module ClassMethods
     def decorate(options = {})
       cache_key = options.flatten.join.parameterize
+      cache_key = cache_key.blank? ? "default" : cache_key
       @decorator ||= {}
       @decorator[cache_key] ||= begin
         decorator_version = options[:version] || :default
