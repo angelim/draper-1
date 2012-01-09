@@ -35,5 +35,9 @@ module Draper
     def to_s
       "#<DecoratedEnumerableProxy of #{@klass} for #{@wrapped_collection.inspect}>"
     end
+    
+    def new
+      wrapped_collection.new(wrapped_collection.selector)
+    end
   end
 end
